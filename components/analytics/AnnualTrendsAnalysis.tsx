@@ -274,13 +274,33 @@ const AnnualTrendsAnalysis: React.FC<AnnualTrendsAnalysisProps> = () => {
         console.log(`Generated ${monthlyData.length} monthly aggregated records`);
         
         // Update state with the monthly data
-        // Convert monthlyData to match MonthlyAggregation type by adding required date field
-        setHistoricalData(monthlyData.map(item => ({
-          ...item,
-          date: `${item.year}-${String(item.month).padStart(2, '0')}-15`,
-          totalRevenue: item.oldRevenue + item.newRevenue,
-          totalPatients: item.oldPatients + item.newPatients
-        })));
+        // Process each monthly data item to ensure it has year and month properties
+        const processedMonthlyData = monthlyData.map(item => {
+          // Make sure year and month are properly extracted from date
+          const dateParts = item.date.split('-');
+          const year = parseInt(dateParts[0], 10);
+          const month = parseInt(dateParts[1], 10);
+          
+          console.log(`Processing monthly data item: ${item.id}`, {
+            date: item.date,
+            extractedYear: year,
+            extractedMonth: month,
+            doctorName: item.doctorName,
+            oldRevenue: item.oldRevenue,
+            newRevenue: item.newRevenue
+          });
+          
+          return {
+            ...item,
+            year: year,
+            month: month,
+            totalRevenue: item.oldRevenue + item.newRevenue,
+            totalPatients: item.oldPatients + item.newPatients
+          };
+        });
+        
+        console.log('Processed monthly data:', processedMonthlyData.slice(0, 2));
+        setHistoricalData(processedMonthlyData);
       } catch (error) {
         console.error('Error fetching historical data:', error);
         console.error('Error details:', error instanceof Error ? error.message : String(error));
@@ -296,15 +316,35 @@ const AnnualTrendsAnalysis: React.FC<AnnualTrendsAnalysisProps> = () => {
   
   // Process the historical data
   useEffect(() => {
-    if (!historicalData || historicalData.length === 0) return;
+    if (!historicalData || historicalData.length === 0) {
+      console.log('No historical data available for processing');
+      return;
+    }
 
-    // Extract all available years from the data
-    const years = [...new Set(historicalData.map(item => timestampToDate(item.date).getFullYear()))];
+    console.log('Processing historical data:', historicalData.slice(0, 3));
+    
+    // Extract all available years from the data using the year property we ensured exists
+    const years = [...new Set(historicalData.map(item => item.year || 0).filter(year => year > 0))];
+    
+    if (years.length === 0) {
+      // Fallback to extracting from date strings if no year properties exist
+      console.log('No year properties found, extracting from dates');
+      const dateYears = [...new Set(historicalData.map(item => {
+        const date = typeof item.date === 'string' ? new Date(item.date) : timestampToDate(item.date);
+        const year = date.getFullYear();
+        console.log(`Extracted year ${year} from date ${item.date}`);
+        return year;
+      }))];
+      years.push(...dateYears);
+    }
+    
     years.sort((a, b) => b - a); // Sort in descending order (most recent first)
+    console.log('Available years:', years);
     setAvailableYears(years);
     
     // If no year is selected yet, select the most recent one
-    if (!selectedYear && years.length > 0) {
+    if ((!selectedYear || years.indexOf(selectedYear) === -1) && years.length > 0) {
+      console.log(`Setting selected year to ${years[0]}`);
       setSelectedYear(years[0]);
     }
 
